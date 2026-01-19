@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'models/lesson.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 
 class ExerciseWidget extends StatelessWidget {
   final Exercise exercise;
@@ -48,6 +50,10 @@ class ExerciseWidget extends StatelessWidget {
         return 'Fill in the blank';
       case ExerciseType.translate:
         return 'Translate this sentence';
+      case ExerciseType.voice:
+        return 'Speak this sentence';
+      case ExerciseType.aiScenario:
+        return 'Respond to the scenario';
     }
   }
 
@@ -111,6 +117,12 @@ class ExerciseWidget extends StatelessWidget {
           ),
           style: const TextStyle(fontSize: 18),
         );
+      case ExerciseType.voice:
+      case ExerciseType.aiScenario:
+        return VoiceExerciseWidget(
+          exercise: exercise,
+          onTranscribed: onSelect,
+        );
     }
   }
 }
@@ -132,41 +144,43 @@ class ChoiceCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      child: AnimatedContainer( // animated container for smooth transition
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFDDF4FF) : Colors.white,
           border: Border.all(
             color: isSelected ? AppTheme.duoBlue : AppTheme.duoLightGray,
-            width: 2,
+            width: isSelected ? 2.5 : 2, // Thicker border when selected
+            strokeAlign: BorderSide.strokeAlignInside, // Keep size constant
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            if (!isSelected)
-              const BoxShadow(
-                color: AppTheme.duoLightGray,
-                offset: Offset(0, 4),
+             // "Button" style shadow (solid color offset)
+             BoxShadow(
+                color: isSelected ? AppTheme.duoDarkBlue : AppTheme.duoLightGray,
+                offset: const Offset(0, 4),
+                blurRadius: 0, 
               ),
           ],
         ),
         child: Row(
           children: [
-            Container(
-              width: 30,
-              height: 30,
+            Container( // Custom check circle
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
+                color: isSelected ? AppTheme.duoBlue : Colors.transparent,
                 border: Border.all(
                   color: isSelected ? AppTheme.duoBlue : AppTheme.duoLightGray,
                   width: 2,
                 ),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(8), // Rounded square check
               ),
               child: isSelected
                   ? const Center(
-                      child: CircleAvatar(
-                        radius: 8,
-                        backgroundColor: AppTheme.duoBlue,
-                      ),
+                      child: Icon(Icons.check, size: 16, color: Colors.white),
                     )
                   : null,
             ),
@@ -176,8 +190,8 @@ class ChoiceCard extends StatelessWidget {
                 text,
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? AppTheme.duoDarkBlue : const Color(0xFF4B4B4B),
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? AppTheme.duoBlue : const Color(0xFF4B4B4B),
                 ),
               ),
             ),
@@ -290,5 +304,168 @@ class _MatchExerciseState extends State<MatchExercise> {
       }
       setState(() {});
     }
+  }
+}
+
+class VoiceExerciseWidget extends StatefulWidget {
+  final Exercise exercise;
+  final Function(String) onTranscribed;
+
+  const VoiceExerciseWidget({super.key, required this.exercise, required this.onTranscribed});
+
+  @override
+  State<VoiceExerciseWidget> createState() => _VoiceExerciseWidgetState();
+}
+
+class _VoiceExerciseWidgetState extends State<VoiceExerciseWidget> {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+  bool _isInitialized = false;
+  String _text = '';
+  String _status = 'Tap to speak';
+
+  @override
+  void initState() {
+    super.initState();
+    _initSpeech();
+  }
+
+  void _initSpeech() async {
+    try {
+      var status = await Permission.microphone.status;
+      if (status.isDenied) {
+        status = await Permission.microphone.request();
+      }
+      
+      if (status.isGranted) {
+        bool initialized = await _speech.initialize(
+          onStatus: (s) => debugPrint('STT Status: $s'),
+          onError: (e) => debugPrint('STT Error: $e'),
+        );
+        setState(() => _isInitialized = initialized);
+      }
+    } catch (e) {
+      debugPrint('Speech initialization failed: $e');
+    }
+  }
+
+  void _listen() async {
+    if (!_isInitialized) {
+      _initSpeech();
+      return;
+    }
+
+    if (!_isListening) {
+      setState(() {
+        _isListening = true;
+        _status = 'Listening...';
+        _text = '';
+      });
+      
+      await _speech.listen(
+        onResult: (val) {
+          setState(() {
+            _text = val.recognizedWords;
+            if (val.hasConfidenceRating && val.confidence > 0) {
+              widget.onTranscribed(_text);
+            }
+          });
+        },
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 3),
+        partialResults: true,
+      );
+    } else {
+      _stopListening();
+    }
+  }
+
+  void _stopListening() {
+    _speech.stop();
+    setState(() {
+      _isListening = false;
+      _status = _text.isEmpty ? 'Tap to speak' : 'Ready to check';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 40),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _isListening ? AppTheme.duoBlue.withValues(alpha: 0.1) : Colors.transparent,
+            border: Border.all(
+              color: _isListening ? AppTheme.duoBlue : AppTheme.duoLightGray,
+              width: 4,
+            ),
+          ),
+          child: InkWell(
+            onTap: _listen,
+            borderRadius: BorderRadius.circular(100),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isListening ? AppTheme.duoBlue.withValues(alpha: 0.1) : Colors.transparent,
+                border: Border.all(
+                  color: _isListening ? AppTheme.duoBlue : AppTheme.duoLightGray,
+                  width: 4,
+                ),
+                boxShadow: _isListening ? [
+                  BoxShadow(
+                    color: AppTheme.duoBlue.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  )
+                ] : [],
+              ),
+              child: Icon(
+                _isListening ? Icons.mic : Icons.mic_none,
+                size: 64,
+                color: _isListening ? AppTheme.duoBlue : AppTheme.duoGray,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          _status,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: _isListening ? AppTheme.duoBlue : AppTheme.duoGray,
+          ),
+        ),
+        const SizedBox(height: 32),
+        if (_text.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.duoLightGray),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  'Transcribed Text:',
+                  style: TextStyle(fontSize: 12, color: AppTheme.duoGray),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/services/ai_service.dart';
 
 class ChatMessage {
   final String text;
@@ -22,13 +23,13 @@ class AIProvider extends ChangeNotifier {
   AIProvider() {
     // Initial welcome message
     _messages.add(ChatMessage(
-      text: "Selam! I'm your Amharic tutor. Ask me anything about the language or try writing a sentence!",
+      text: "Selam! I'm your AI language tutor. Ask me anything about Amharic, Afaan Oromo, or Tigregna!",
       isUser: false,
       timestamp: DateTime.now(),
     ));
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, String language, String level) async {
     if (text.trim().isEmpty) return;
 
     // Add user message
@@ -41,11 +42,11 @@ class AIProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // TODO: Call Firebase Cloud Function proxy for OpenAI/Gemini
-      // For now, simulate a response
-      await Future.delayed(const Duration(seconds: 2));
-      
-      String aiResponse = _getMockResponse(text);
+      String aiResponse = await AIService().getAIResponse(
+        scenario: "You are an AI language tutor. The user is at the $level level in $language.",
+        userInput: text,
+        language: language,
+      );
       
       _messages.add(ChatMessage(
         text: aiResponse,
@@ -64,15 +65,6 @@ class AIProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _getMockResponse(String userText) {
-    if (userText.contains('እኔ መሄድ')) {
-      return "Correct form: 'እኔ ወደ ቤት እሄዳለሁ'.\n'መሄድ' is infinitive (to go). In Amharic, you need to conjugate the verb based on the subject.";
-    }
-    if (userText.toLowerCase().contains('hello')) {
-      return "Hello! In Amharic, you can say 'Selam' (ሰላም) or 'Tadiyas' (ታዲያስ). How can I help you today?";
-    }
-    return "That's an interesting sentence! Let me analyze it. You're making good progress. If you want to say something specific in Amharic, just ask!";
-  }
 
   void clearChat() {
     _messages.clear();

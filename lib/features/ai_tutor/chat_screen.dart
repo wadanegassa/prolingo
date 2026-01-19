@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../auth/auth_provider.dart';
 import 'ai_provider.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -16,7 +17,17 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   void _sendMessage() {
     if (_controller.text.isNotEmpty) {
-      Provider.of<AIProvider>(context, listen: false).sendMessage(_controller.text);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final lang = authProvider.userProfile?['primaryLanguage'] ?? 'amharic';
+      
+      // Get level safely
+      final Map<String, dynamic> langData = 
+        (authProvider.userProfile?['languages'] != null && authProvider.userProfile!['languages'][lang] != null) 
+        ? authProvider.userProfile!['languages'][lang] 
+        : {};
+      final level = langData['currentLevel'] ?? 'Basic';
+
+      Provider.of<AIProvider>(context, listen: false).sendMessage(_controller.text, lang, level);
       _controller.clear();
       _scrollToBottom();
     }
@@ -37,6 +48,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   Widget build(BuildContext context) {
     final aiProvider = Provider.of<AIProvider>(context);
+
+    final authProvider = Provider.of<AuthProvider>(context);
+    final lang = authProvider.userProfile?['primaryLanguage'] ?? 'amharic';
+    final languageHint = lang[0].toUpperCase() + lang.substring(1);
 
     return Scaffold(
       appBar: AppBar(
@@ -77,13 +92,13 @@ class _AIChatScreenState extends State<AIChatScreen> {
               padding: EdgeInsets.all(8.0),
               child: LinearProgressIndicator(color: AppTheme.duoGreen),
             ),
-          _buildInputArea(),
+          _buildInputArea(languageHint),
         ],
       ),
     );
   }
 
-  Widget _buildInputArea() {
+  Widget _buildInputArea(String languageHint) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -96,7 +111,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
             child: TextField(
               controller: _controller,
               decoration: InputDecoration(
-                hintText: 'Ask your tutor...',
+                hintText: 'Ask your $languageHint tutor...',
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),

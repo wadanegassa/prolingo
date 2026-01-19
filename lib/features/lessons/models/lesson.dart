@@ -1,10 +1,11 @@
-enum ExerciseType { multipleChoice, match, fillInTheBlank, translate }
+enum ExerciseType { multipleChoice, match, fillInTheBlank, translate, voice, aiScenario }
 
 class Unit {
   final String id;
   final String title;
   final String description;
   final int order;
+  final String section; // e.g., "Basic", "Intermediate"
   final List<Lesson> lessons;
 
   Unit({
@@ -12,6 +13,7 @@ class Unit {
     required this.title,
     required this.description,
     required this.order,
+    this.section = 'Basic',
     this.lessons = const [],
   });
 
@@ -21,6 +23,7 @@ class Unit {
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       order: data['order'] ?? 0,
+      section: data['section'] ?? 'Basic',
     );
   }
 }
@@ -87,6 +90,12 @@ class Exercise {
         break;
       case 'translate':
         type = ExerciseType.translate;
+        break;
+      case 'voice':
+        type = ExerciseType.voice;
+        break;
+      case 'aiScenario':
+        type = ExerciseType.aiScenario;
         break;
       default:
         type = ExerciseType.multipleChoice;

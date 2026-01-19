@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../auth/auth_provider.dart';
 import '../lessons/lesson_provider.dart';
-import '../lessons/models/lesson.dart';
-import '../lessons/lesson_screen.dart';
 import '../../core/widgets/bottom_nav.dart';
 import '../ai_tutor/chat_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../core/theme/app_theme.dart';
+import 'widgets/level_card.dart';
+import '../lessons/lesson_screen.dart';
+
+enum LessonStatus { locked, active, completed }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const UnitListScreen(),
+    const LevelSelectionScreen(),
     const AIChatScreen(),
     const ProfileScreen(),
   ];
@@ -44,27 +46,88 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class UnitListScreen extends StatefulWidget {
-  const UnitListScreen({super.key});
+class LevelSelectionScreen extends StatefulWidget {
+  const LevelSelectionScreen({super.key});
 
   @override
-  State<UnitListScreen> createState() => _UnitListScreenState();
+  State<LevelSelectionScreen> createState() => _LevelSelectionScreenState();
 }
 
-class _UnitListScreenState extends State<UnitListScreen> {
+class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<LessonProvider>(context, listen: false).fetchUnits();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final lang = authProvider.userProfile?['primaryLanguage'] ?? 'amharic';
+      Provider.of<LessonProvider>(context, listen: false).fetchUnits(lang);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final lessonProvider = Provider.of<LessonProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final lessonProvider = Provider.of<LessonProvider>(context);
+    
+    if (lessonProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Check if we need to seed data for this language
+    if (lessonProvider.units.isEmpty) {
+      final lang = authProvider.userProfile?['primaryLanguage'] ?? 'amharic';
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.auto_stories, size: 80, color: AppTheme.duoLightGray),
+            const SizedBox(height: 24),
+            Text(
+              'Welcome to ${lang.toUpperCase()}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () => lessonProvider.seedData(lang),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.duoGreen,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              ),
+              child: const Text('START MY JOURNEY'),
+            ),
+          ],
+        ),
+      );
+    }
+
     final userProfile = authProvider.userProfile;
+    final String lang = userProfile?['primaryLanguage'] ?? 'amharic';
+    
+    // Safety check for new data structure
+    final Map<String, dynamic> langData = 
+        (userProfile?['languages'] != null && userProfile!['languages'][lang] != null) 
+        ? userProfile['languages'][lang] 
+        : {};
+
+    final int streak = userProfile?['streak'] ?? 0;
+
+    // Progress
+    final double basicProgress = (langData['basicProgress'] ?? 0.0).toDouble();
+    final double intermediateProgress = (langData['intermediateProgress'] ?? 0.0).toDouble();
+    final double advancedProgress = (langData['advancedProgress'] ?? 0.0).toDouble();
+
+    // Unlock Logic: Requires Progress >= 100% AND XP requirement
+    final int basicXP = langData['basicXP'] ?? 0;
+    final int interXP = langData['interXP'] ?? 0;
+    final int advXP = langData['advXP'] ?? 0;
+
+    final String currentLevel = langData['currentLevel'] ?? 'Basic';
+    final int totalLangXP = langData['xp'] ?? 0;
+    
+    bool isIntermediateLocked = totalLangXP < 100; 
+    bool isAdvancedLocked = totalLangXP < 200;
+
+    debugPrint('Level Selection State: currentLevel=$currentLevel, totalXP=$totalLangXP');
 
     return Scaffold(
       appBar: AppBar(
@@ -72,167 +135,142 @@ class _UnitListScreenState extends State<UnitListScreen> {
           children: [
             const Icon(Icons.flash_on, color: AppTheme.duoOrange),
             const SizedBox(width: 4),
-            Text('${userProfile?['streak'] ?? 0}'),
+            Text('$streak'),
             const SizedBox(width: 16),
             const Icon(Icons.stars, color: AppTheme.duoBlue),
             const SizedBox(width: 4),
-            Text('${userProfile?['xp'] ?? 0}'),
+            Text('${langData['xp'] ?? 0}'), // Total XP for this language
+            const Expanded(child: SizedBox()),
+            IconButton(
+              icon: const Icon(Icons.flag, color: AppTheme.duoBlue),
+              onPressed: () => _showLanguagePicker(context, authProvider),
+            ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flag, color: AppTheme.duoBlue),
-            onPressed: () {},
+        backgroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 40, top: 20),
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Text(
+              "Your Learning Path",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          
+          LevelCard(
+            levelName: 'Basic',
+            progress: basicProgress / 100, // Scale 0-100 to 0-1
+            isLocked: false,
+            xp: basicXP,
+            onTap: () => _launchQuiz(context, 'Basic'),
+          ),
+          
+          LevelCard(
+            levelName: 'Intermediate',
+            progress: intermediateProgress / 100,
+            isLocked: isIntermediateLocked,
+            lockedReason: 'NEED 100 XP',
+            xp: interXP,
+            onTap: isIntermediateLocked ? null : () { _launchQuiz(context, 'Intermediate'); },
+          ),
+          
+          LevelCard(
+            levelName: 'Advanced',
+            progress: advancedProgress / 100,
+            isLocked: isAdvancedLocked,
+            lockedReason: 'NEED 200 XP',
+            xp: advXP,
+            onTap: isAdvancedLocked ? null : () { _launchQuiz(context, 'Advanced'); },
           ),
         ],
-        elevation: 0,
-        backgroundColor: Colors.white,
       ),
-      body: lessonProvider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : lessonProvider.units.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.auto_stories, size: 80, color: AppTheme.duoLightGray),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'No lessons found',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Your language journey is about to begin. Tap below to load the demo units!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppTheme.duoGray),
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton(
-                          onPressed: () => lessonProvider.seedData(),
-                          child: const Text('START MY JOURNEY'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => lessonProvider.fetchUnits(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    itemCount: lessonProvider.units.length,
-                    itemBuilder: (context, index) {
-                      final unit = lessonProvider.units[index];
-                      return UnitSection(unit: unit);
-                    },
-                  ),
-                ),
     );
   }
-}
 
-class UnitSection extends StatelessWidget {
-  final Unit unit;
+  Future<void> _launchQuiz(BuildContext context, String levelName) async {
+    final lessonProvider = Provider.of<LessonProvider>(context, listen: false);
+    
+    // Get the section's units
+    final units = lessonProvider.getUnitsBySection(levelName);
+    
+    if (units.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No content available for this level')),
+      );
+      return;
+    }
 
-  const UnitSection({super.key, required this.unit});
+    // Get the first unit for this level (prioritize versioned or just the first)
+    final unit = units.isNotEmpty ? units.first : null;
+    
+    if (unit == null || unit.lessons.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No lessons available')),
+      );
+      return;
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: AppTheme.duoGreen,
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.duoDarkGreen,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'UNIT ${unit.order}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                unit.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        ...unit.lessons.map((lesson) => LessonNode(unit: unit, lesson: lesson)),
-        const SizedBox(height: 40),
-      ],
+    // Get the first (and only) lesson
+    final lesson = unit.lessons.first;
+    
+    // Navigate to LessonScreen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LessonScreen(unit: unit, lesson: lesson),
+      ),
     );
   }
-}
 
-class LessonNode extends StatelessWidget {
-  final Unit unit;
-  final Lesson lesson;
-
-  const LessonNode({super.key, required this.unit, required this.lesson});
-
-  @override
-  Widget build(BuildContext context) {
-    // Alternate alignment for path effect
-    bool isLeft = lesson.order % 2 == 0;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Align(
-        alignment: isLeft ? const Alignment(-0.3, 0) : const Alignment(0.3, 0),
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => LessonScreen(unit: unit, lesson: lesson)),
-            );
-          },
-          child: Column(
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppTheme.duoYellow,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.duoOrange,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.star, color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                lesson.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
+  void _showLanguagePicker(BuildContext context, AuthProvider authProvider) {
+    
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Switch Language', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            _langTile(context, authProvider, 'Amharic', 'amharic'),
+            _langTile(context, authProvider, 'Afaan Oromo', 'afaan oromo'),
+            _langTile(context, authProvider, 'Tigregna', 'tigregna'),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
   }
+
+  Widget _langTile(BuildContext context, AuthProvider authProvider, String title, String code) {
+    final currentLang = authProvider.userProfile?['primaryLanguage'] ?? 'amharic';
+    final isSelected = currentLang == code;
+
+    return ListTile(
+      title: Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+      trailing: isSelected ? const Icon(Icons.check_circle, color: AppTheme.duoGreen) : null,
+      onTap: () {
+        if (!isSelected) {
+          authProvider.setPrimaryLanguage(code);
+          Provider.of<LessonProvider>(context, listen: false).fetchUnits(code);
+        }
+        Navigator.pop(context);
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
 }
+
