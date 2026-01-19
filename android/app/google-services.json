@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "361646362895",
+    "project_id": "prolingo-5cc1d",
+    "storage_bucket": "prolingo-5cc1d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:361646362895:android:f61e46943db6a1afd66e7a",
+        "android_client_info": {
+          "package_name": "com.example.prolingo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBV2dG6kzAp1zHWaurpXhsuAeBWfzlzWk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
