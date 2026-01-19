@@ -87,6 +87,7 @@ class _LessonScreenState extends State<LessonScreen> {
         correct = _aiResponse != null && !_aiResponse!.contains('Error');
       }
       
+      if (!mounted) return;
       setState(() => _isCheckingAI = false);
     } else if (exercise.type == ExerciseType.match) {
       correct = true; 

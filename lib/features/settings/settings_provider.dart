@@ -5,10 +5,12 @@ class SettingsProvider extends ChangeNotifier {
   bool _dailyReminders = true;
   bool _soundEffects = true;
   bool _hapticFeedback = true;
+  bool _isDarkMode = false;
 
   bool get dailyReminders => _dailyReminders;
   bool get soundEffects => _soundEffects;
   bool get hapticFeedback => _hapticFeedback;
+  bool get isDarkMode => _isDarkMode;
 
   SettingsProvider() {
     _loadSettings();
@@ -19,6 +21,7 @@ class SettingsProvider extends ChangeNotifier {
     _dailyReminders = prefs.getBool('dailyReminders') ?? true;
     _soundEffects = prefs.getBool('soundEffects') ?? true;
     _hapticFeedback = prefs.getBool('hapticFeedback') ?? true;
+    _isDarkMode = prefs.getBool('isDarkMode') ?? false;
     notifyListeners();
   }
 
@@ -40,6 +43,13 @@ class SettingsProvider extends ChangeNotifier {
     _hapticFeedback = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hapticFeedback', value);
+    notifyListeners();
+  }
+
+  Future<void> setDarkMode(bool value) async {
+    _isDarkMode = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', value);
     notifyListeners();
   }
 }

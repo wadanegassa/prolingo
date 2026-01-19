@@ -42,6 +42,13 @@ class SettingsScreen extends StatelessWidget {
             settings.hapticFeedback,
             (val) => settings.setHapticFeedback(val),
           ),
+          _buildSwitchTile(
+            'Dark Mode',
+            'Use a darker color theme',
+            Icons.dark_mode,
+            settings.isDarkMode,
+            (val) => settings.setDarkMode(val),
+          ),
           const Divider(height: 40),
           _buildSectionHeader('Account'),
           _buildListTile(
@@ -196,21 +203,23 @@ class SettingsScreen extends StatelessWidget {
                 builder: (context) => const Center(child: CircularProgressIndicator()),
               );
               
-              // Reseed
+              // Reseed with timeout safety
               try {
-                final seededCount = await lessonProvider.seedData(lang);
+                final seededCount = await lessonProvider.seedData(lang).timeout(
+                  const Duration(seconds: 15),
+                  onTimeout: () => throw 'Connection timed out. Please try again.',
+                );
                 
-                // Hide loading
                 if (context.mounted) {
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Hide loading
                   if (seededCount > 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Succesfully seeded $seededCount languages!')),
+                      SnackBar(content: Text('Successfully seeded $seededCount units!')),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Seeding failed. Check your connection.'),
+                        content: Text('Seeding failed. Please check your internet.'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -218,7 +227,7 @@ class SettingsScreen extends StatelessWidget {
                 }
               } catch (e) {
                  if (context.mounted) {
-                   Navigator.pop(context);
+                   Navigator.of(context).pop(); // Ensure loading is popped
                    ScaffoldMessenger.of(context).showSnackBar(
                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                    );
@@ -260,7 +269,10 @@ class SettingsScreen extends StatelessWidget {
               );
               
               try {
-                await authProvider.resetProgress();
+                await authProvider.resetProgress().timeout(
+                  const Duration(seconds: 10),
+                  onTimeout: () => throw 'Reset timed out. Please try again.',
+                );
                 
                 if (context.mounted) {
                   Navigator.pop(context); // Hide loading
@@ -270,7 +282,7 @@ class SettingsScreen extends StatelessWidget {
                 }
               } catch (e) {
                 if (context.mounted) {
-                  Navigator.pop(context);
+                  Navigator.of(context).pop(); // Ensure loading is popped
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                   );

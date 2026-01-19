@@ -373,7 +373,7 @@ class _VoiceExerciseWidgetState extends State<VoiceExerciseWidget> {
         },
         listenFor: const Duration(seconds: 10),
         pauseFor: const Duration(seconds: 3),
-        partialResults: true,
+        listenOptions: stt.SpeechListenOptions(partialResults: true),
       );
     } else {
       _stopListening();

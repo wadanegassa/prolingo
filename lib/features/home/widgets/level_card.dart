@@ -157,28 +157,35 @@ class LevelCard extends StatelessWidget {
                       const SizedBox(width: 20),
                       // Progress Indicator
                       if (!isLocked)
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            SizedBox(
-                              width: 60,
-                              height: 60,
-                              child: CircularProgressIndicator(
-                                value: progress,
-                                strokeWidth: 8,
-                                backgroundColor: Colors.black12,
-                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            ),
-                            Text(
-                              '${(progress * 100).toInt()}%',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0, end: progress),
+                          duration: const Duration(milliseconds: 1000),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, _) {
+                            return Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 60,
+                                  height: 60,
+                                  child: CircularProgressIndicator(
+                                    value: value,
+                                    strokeWidth: 8,
+                                    backgroundColor: Colors.black12,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                ),
+                                Text(
+                                  '${(value * 100).toInt()}%',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                     ],
                   ),

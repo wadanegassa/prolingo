@@ -18,9 +18,12 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize AI Service with a placeholder or environment key
-  const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'YOUR_API_KEY_HERE');
+  // --- AI INITIALIZATION ---
+  // To unlock full AI features, replace 'YOUR_API_KEY_HERE' with your real Gemini API Key.
+  // ProTip: Use 'flutter run --dart-define=GEMINI_API_KEY=your_key_here'
+  const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'AIzaSyAOelLNZ_MK8co5fUm3y8Xumn_jRojjabs');
   AIService().init(apiKey);
+  // --------------------------
   
   runApp(const ProLingoApp());
 }
@@ -37,13 +40,17 @@ class ProLingoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AIProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
-      child: MaterialApp(
-        title: 'ProLingo AI',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, _) {
+          return MaterialApp(
+            title: 'ProLingo AI',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const AuthWrapper(),
+          );
+        },
       ),
     );
   }
